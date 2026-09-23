@@ -1,0 +1,5 @@
+pytest>=7.0
+moto[sqs,s3]>=5.0
+httpx>=0.27
+flake8>=5.0
+mypy>=1.0

@@ -1,0 +1,38 @@
+name: tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  run_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint
+        run: flake8 app tests --max-line-length=120
+
+      - name: Type check
+        run: mypy app --ignore-missing-imports
+
+      - name: Run pytest
+        run: python -m pytest -v
+
+      # Illustrative only: in the real pipeline this step runs against the
+      # already-built ECR image tag and gates the deploy job on the result.
+      # See README "Tag-driven deploys & image scanning" for the full pattern.
+      - name: Dependency vulnerability scan (illustrative)
+        run: |
+          pip install safety
+          safety check -r requirements.txt || true
