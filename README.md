@@ -1,5 +1,7 @@
 # Fan-out / Fan-in PDF Pipeline Training
 
+> **Note:** This is a from-scratch recreation of an architectural pattern I built at my employer, not the original production code -- rebuilt with a fabricated/generic domain and no proprietary business logic, credentials, or internal resource identifiers.
+
 A training example of an async, fire-and-forget reporting pipeline built on FastAPI + Lambda +
 SQS + S3: one endpoint enqueues a request, a dispatcher fans work out to N worker invocations,
 and results are merged and paginated once every worker finishes. This mirrors a real pattern for
