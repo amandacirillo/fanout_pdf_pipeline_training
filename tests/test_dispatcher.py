@@ -29,28 +29,32 @@ def test_handle_request_dispatch_only(moto_aws):
         assert storage_client.exists(storage_client.worker_output_key('PROG', 'REQ1', i))
 
 
-def test_handle_request_full_flow_with_polling(moto_aws):
-    """End-to-end: dispatch workers, run them (simulating the real SQS
-    trigger firing before the dispatcher's poll loop times out), then let the
-    dispatcher's own poll-and-combine step finish."""
-    import threading
-    import time
+def test_handle_request_full_flow_with_polling(moto_aws, monkeypatch):
+    """End-to-end: dispatch workers, then let the dispatcher's own
+    poll-and-combine step pick up their output and merge it.
 
+    Rather than racing a real background thread against the poll loop
+    (flaky under CI's shared/throttled CPUs -- a zero- or near-zero-delay
+    busy loop can starve a worker thread of the GIL before it ever runs),
+    we deterministically run the workers the first time the dispatcher's
+    poll loop calls `time.sleep` waiting for them. This keeps the test fast
+    and reproducible while still exercising the real poll-and-combine code.
+    """
     message = {'program': 'PROG', 'requestNumber': 'REQ2', 'itemCount': 8, 'recipients': ['someone@example.com']}
 
-    def run_workers_shortly_after_dispatch():
-        time.sleep(0.05)
-        # Give the dispatcher a moment to send worker messages first.
-        for _ in range(5):
-            if _drain_and_run_workers(handlers.settings.queue_name):
-                break
-            time.sleep(0.05)
+    ran_workers = {'done': False}
+    real_sleep = handlers.time.sleep
 
-    worker_thread = threading.Thread(target=run_workers_shortly_after_dispatch)
-    worker_thread.start()
+    def sleep_and_run_workers_once(seconds):
+        if not ran_workers['done']:
+            ran_workers['done'] = True
+            _drain_and_run_workers(handlers.settings.queue_name)
+        else:
+            real_sleep(seconds)
+
+    monkeypatch.setattr(handlers.time, 'sleep', sleep_and_run_workers_once)
 
     result = handlers.handle_request(message, poll=True)
-    worker_thread.join()
 
     assert result['status'] == 'COMPLETE'
     assert storage_client.exists(storage_client.combined_output_key('PROG', 'REQ2'))

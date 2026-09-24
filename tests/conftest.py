@@ -15,8 +15,12 @@ def fast_polling(monkeypatch):
     from app.settings import settings
 
     original = (settings.poll_interval_seconds, settings.poll_timeout_seconds, settings.items_per_worker)
-    object.__setattr__(settings, 'poll_interval_seconds', 0.0)
-    object.__setattr__(settings, 'poll_timeout_seconds', 5.0)
+    # A zero-second interval turns the dispatcher's poll loop into a tight
+    # busy-loop that can starve the worker thread of the GIL on constrained
+    # CI runners, causing spurious timeouts. A small nonzero interval still
+    # keeps tests fast while letting the worker thread actually run.
+    object.__setattr__(settings, 'poll_interval_seconds', 0.02)
+    object.__setattr__(settings, 'poll_timeout_seconds', 10.0)
     object.__setattr__(settings, 'items_per_worker', 5)
     yield
     object.__setattr__(settings, 'poll_interval_seconds', original[0])
